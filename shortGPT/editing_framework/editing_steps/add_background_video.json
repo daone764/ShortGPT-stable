@@ -20,5 +20,26 @@
 				"param": null
 			}
 		]
+	},
+	"add_image_overlay": {
+		"type": "video",
+		"z": 5,
+		"inputs": {
+			"parameters": ["query", "timestamp"]
+		},
+		"parameters": {
+			"query": null,
+			"timestamp": null
+		},
+		"actions": [
+			{
+				"type": "fetch_image",
+				"param": null
+			},
+			{
+				"type": "overlay_at_timestamp",
+				"param": null
+			}
+		]
 	}
 }

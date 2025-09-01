@@ -117,3 +117,29 @@ def llm_completion(chat_prompt="", system="", temp=0.7, max_tokens=2000, remove_
             error = str(oops)
             sleep(1)
     raise Exception(f"Error communicating with LLM Endpoint Completion errored more than error: {error}")
+
+
+def load_local_yaml_prompt(prompt_name):
+    try:
+        with open(f'prompt_templates/{prompt_name}.yaml', 'r') as f:
+            json_template = yaml.safe_load(f)
+        
+        # Ensure it's a dict and has the required keys
+        if not isinstance(json_template, dict):
+            raise ValueError(f"YAML file {prompt_name}.yaml is not a valid dictionary")
+        
+        chat_prompt = json_template.get('chat_prompt', '')
+        system_prompt = json_template.get('system_prompt', '')
+        
+        if not chat_prompt:
+            raise KeyError(f"'chat_prompt' key missing in {prompt_name}.yaml")
+        if not system_prompt:
+            raise KeyError(f"'system_prompt' key missing in {prompt_name}.yaml")
+        
+        return chat_prompt, system_prompt
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Prompt file {prompt_name}.yaml not found in prompt_templates/")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Error parsing YAML file {prompt_name}.yaml: {e}")
+    except Exception as e:
+        raise Exception(f"Error loading prompt {prompt_name}: {e}")

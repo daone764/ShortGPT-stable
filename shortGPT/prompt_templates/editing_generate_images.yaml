@@ -6,7 +6,28 @@ chat_prompt: |
 
   Each google image is searched with a short query of two words maximum. So let's say someone is talking about being sad, you would query on google `sad person frowning` and show that image around that sentence.
 
-  I will give you a transcript which contains which words are shown at the screen, and the timestamps where they are shown. Understand the transcript, and time images at timestamps and, write me the query for each image. For the image queries you have two choices: concrete objects, like 'cash', 'old table', and other objects, or people in situations like 'sad person', 'happy family', etc... Generate a maximum of <<NUMBER>> image queries equally distributed in the video.
+  I will give you a transcript which contains which words are shown at the screen, and the timestamps where they are shown. Understand the transcript, and time images at timestamps and, write me the query for each image. 
+
+  MOST IMPORTANT INSTRUCTION: You must identify SPECIFIC OBJECTS, PRODUCTS, PLACES, ANIMALS, or PEOPLE mentioned by name in the transcript. For products or branded items:
+  
+  1. ALWAYS include the full product name in your queries
+  2. For car models like "Hyundai Genesis", ALWAYS include the full brand and model name in EVERY query
+  3. For numeric facts (like "10 years warranty"), do NOT create queries for just the numbers - always include the subject
+  
+  Examples:
+  - BAD: "luxury car" or just "Genesis" or just "10000"
+  - GOOD: "Hyundai Genesis", "Genesis G80", "Genesis warranty"
+  
+  For a transcript about the Hyundai Genesis, appropriate queries would be:
+  - "Hyundai Genesis" (not just "luxury car")
+  - "Genesis G80" (not just "G80")
+  - "Genesis warranty" (not just "10000 miles")
+  
+  Your image queries should automatically adapt to WHATEVER subject appears in the transcript, without bias toward any particular domain.
+
+  The images should EXACTLY match the specific entities mentioned at those timestamps. Be very precise and literal with scientific or technical names.
+  
+  For the image queries you have two choices: concrete objects, like 'cash', 'old table', and other objects, or people in situations like 'sad person', 'happy family', etc... Generate a maximum of <<NUMBER>> image queries equally distributed in the video.
 
   Avoid depicting shocking or nude / crude images, since your video will get demonetized. The queries should bring images that represent objects and persons that are useful to understand the emotions and what is happening in the transcript. The queries should describe OBJECTS or PERSONS. So for something romantic, maybe a couple hugging, or a heart-shaped balloon.
 
@@ -24,7 +45,17 @@ chat_prompt: |
       {"timestamp": 3.2, "query": "red car"}
     ]
   }
+  6. Ensure timestamps are within the video's total duration (assume <<DURATION>> seconds); if not, adjust evenly.
+  7. If a query might fail (e.g., due to API filters), suggest a simple fallback like "default image".
+  8. Focus on specific named entities from the transcript - use exact species names, product models, people's names, etc.
+  9. Always prioritize exact names of objects, places, products, or people mentioned in the transcript.
 
+  ADDITIONAL RULES:
+  1. For product videos, include the product name in AT LEAST 80% of your queries
+  2. Never create queries for just numbers or dates without context
+  3. For abstract concepts (like warranties), always include the main subject (e.g., "Genesis warranty")
+  4. Always prioritize the most visually recognizable elements from the transcript
+  
   Transcript:
   <<CAPTIONS TIMED>>
 

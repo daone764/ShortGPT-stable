@@ -124,6 +124,18 @@ These technologies work together to provide a seamless and efficient experience 
 ## 💁 Contributing
 
 As an open-source project in a rapidly developing field, we are extremely open to contributions, whether it would be in the form of a new feature, improved infrastructure, or better documentation.
+
+## 🐛 Troubleshooting and Testing
+If images aren't displaying in your shorts:
+- **Check Logs**: Run video generation and inspect console output for errors like "[ERROR] Image processing failed" or "[WARNING] Timestamp exceeds duration". Enable debug mode in your environment for more details.
+- **Verify Dependencies**: Ensure libraries like `requests` (for API calls) and `moviepy` (for video editing) are installed. Run `pip install requests moviepy` if missing. The UI will check this automatically before generating videos.
+- **API Keys**: Confirm Pexels and Bing API keys are set in the config tab.
+- **If Issues Persist**: Share logs from `videoEngine.makeContent()` or the full `ContentVideoEngine` code for further analysis.
+
+## UI Improvements and Tips
+- Videos are automatically limited to 30 seconds by clipping or speeding up.
+- Check logs via the "View Logs" button in the UI for image fetch errors.
+- Ensure dependencies are installed for smooth operation.
 <p align="center">
   <a href="https://star-history.com/#RayVentura/ShortGPT&Date">
     <img src="https://api.star-history.com/svg?repos=RayVentura/ShortGPT&type=Date" alt="Star History Chart">

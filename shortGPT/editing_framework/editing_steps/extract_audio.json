@@ -23,5 +23,26 @@
                 "param": null
             }
 		]
+	},
+	"add_images": { 
+		"inputs": {
+			"parameters": ["image_queries"],
+			"actions": ["fetch_images", "overlay_images"]
+		},
+		"type": "video",
+		"z": -1,  
+		"parameters": {
+			"image_queries": null
+		},
+		"actions": [
+			{
+				"type": "fetch_images",
+				"param": null
+			},
+			{
+				"type": "overlay_images",
+				"param": null
+			}
+		]
 	}
 }

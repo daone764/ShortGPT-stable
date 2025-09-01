@@ -1,0 +1,33 @@
+{
+	"image_overlay": {
+		"type": "image",
+		"z": 5,
+		"inputs": {
+			"parameters": ["query", "timestamp", "duration"],
+			"actions": []
+		},
+		"parameters": {
+			"query": null,
+			"timestamp": null,
+			"duration": 3.0
+		},
+		"actions": [
+			{
+				"type": "set_time_start",
+				"param": null
+			},
+			{
+				"type": "resize",
+				"param": {
+					"new_size": 0.7
+				}
+			},
+			{
+				"type": "screen_position",
+				"param": {
+					"pos": ["center", "center"]
+				}
+			}
+		]
+	}
+}

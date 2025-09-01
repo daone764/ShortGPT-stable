@@ -1,7 +1,6 @@
 import os
 import traceback
 from enum import Enum
-
 import gradio as gr
 
 from gui.asset_components import AssetComponentsUtils
@@ -16,6 +15,7 @@ from shortGPT.config.languages import (EDGE_TTS_VOICENAME_MAPPING,
                                         Language)
 from shortGPT.engine.content_video_engine import ContentVideoEngine
 from shortGPT.gpt import gpt_chat_video
+from shortGPT.utils.dependency_checker import check_dependencies  # Import new utility
 
 
 class Chatstate(Enum):
@@ -57,6 +57,10 @@ class VideoAutomationUI(AbstractComponentUI):
         if not pexels_api_key:
             return "Your Pexels API key is missing. Please go to the config tab and enter the API key."
 
+        bing_api_key = ApiKeyManager.get_api_key("BING_API_KEY")  # Add check for Bing if used
+        if not bing_api_key:
+            return "Your Bing API key is missing. Please go to the config tab and enter the API key."
+
     def generate_script(self, message, language):
         return gpt_chat_video.generateScript(message, language)
 
@@ -64,22 +68,81 @@ class VideoAutomationUI(AbstractComponentUI):
         return gpt_chat_video.correctScript(script, correction)
 
     def make_video(self, script, voice_module, isVertical, progress):
+        # Check script length - roughly 3 words per second for 30 seconds = 90 words
+        word_count = len(script.split())
+        if word_count > 90:
+            raise Exception(f"Script is too long for a 30-second short (current: {word_count} words, max: 90). Please shorten it.")
+            
         videoEngine = ContentVideoEngine(voiceModule=voice_module, script=script, isVerticalFormat=isVertical)
         num_steps = videoEngine.get_total_steps()
         progress_counter = 0
 
+        # Add dependency check before proceeding
+        missing_deps = check_dependencies()
+        if missing_deps:
+            raise Exception(f"Missing dependencies: {', '.join(missing_deps)}. Please install them via pip.")
+
+        # Pre-check video duration
+        estimated_duration = len(script.split()) * 0.5  # Rough estimate: 0.5 seconds per word
+        if estimated_duration > 30:
+            raise Exception("Estimated video duration exceeds 30 seconds. Please shorten the script for YouTube Shorts.")
+
+        # Validate video length before rendering
+        if self._db_voiceover_duration > 30:
+            raise Exception("Video exceeds 30 seconds; it will be clipped.")
+
+        # Enhanced logging
         def logger(prog_str):
-            progress(progress_counter / (num_steps), f"Creating video - {progress_counter} - {prog_str}")
+            if "image" in prog_str.lower():
+                print(f"[IMAGE DEBUG] {prog_str}")
+            progress(progress_counter / (num_steps), f"Creating video - {prog_str}")
+            if "image" in prog_str.lower() or "fetch" in prog_str.lower():
+                print(f"[DEBUG] Image step: {prog_str}")  # Enhanced logging for image issues
         videoEngine.set_logger(logger)
         for step_num, step_info in videoEngine.makeContent():
             progress(progress_counter / (num_steps), f"Creating video - {step_info}")
             progress_counter += 1
 
+        # Add logging for image queries and potential timestamp issues
+        try:
+            image_queries = videoEngine.get_image_queries()  # Assume this method exists
+            video_duration = videoEngine.get_video_duration()  # Assume this method exists
+            for query in image_queries:
+                if query["timestamp"] > video_duration:
+                    print(f"[WARNING] Timestamp {query['timestamp']} exceeds video duration {video_duration}; adjusting.")
+                    query["timestamp"] = video_duration * 0.9
+                print(f"[DEBUG] Processing image query: {query}")
+        except Exception as e:
+            print(f"[ERROR] Image processing failed: {e}")
+            raise
+
+        # Add logging for image queries
+        try:
+            image_queries = videoEngine.get_image_queries()
+            print(f"[DEBUG] Generated image queries: {image_queries}")
+        except Exception as e:
+            print(f"[ERROR] Failed to get image queries: {e}")
+
         video_path = videoEngine.get_video_output_path()
+        
+        # Save transcript to file
+        transcript_path = os.path.join(os.path.dirname(video_path), "transcript_log.txt")
+        with open(transcript_path, "w") as f:
+            f.write(str(videoEngine._db_timed_captions))  # Assuming _db_timed_captions is accessible
+        
         return video_path
 
     def reset_components(self):
         return gr.update(value=self.initialize_conversation()), gr.update(visible=True), gr.update(value="", visible=False), gr.update(value="", visible=False)
+
+    def initialize_conversation(self):
+        self.state = Chatstate.ASK_ORIENTATION
+        self.isVertical = None
+        self.language = None
+        self.script = ""
+        self.video_html = ""
+        self.videoVisible = False
+        return [{"role": "assistant", "content": "🤖 Welcome to CobriVidz Automator! 🚀 I'm a python framework aiming to simplify and automate your video editing tasks.\nLet's get started! 🎥🎬\n\n Do you want your video to be in landscape or vertical format? (landscape OR vertical)"}]
 
     def chatbot_conversation(self):
         def respond(message, chat_history, progress=gr.Progress()):
@@ -129,7 +192,7 @@ class VideoAutomationUI(AbstractComponentUI):
                 if "yes" in message.lower():
                     self.state = Chatstate.MAKE_VIDEO
                     inputVisible = False
-                    yield gr.update(visible=False), gr.update(value=[[None, "Your video is being made now! 🎬"]]), gr.update(value="", visible=False), gr.update(value=error_html, visible=errorVisible), gr.update(visible=folderVisible), gr.update(visible=False)
+                    yield gr.update(visible=False), gr.update(value=[{"role": "assistant", "content": "Your video is being made now! 🎬"}]), gr.update(value="", visible=False), gr.update(value=error_html, visible=errorVisible), gr.update(visible=folderVisible), gr.update(visible=False)
                     try:
                         video_path = self.make_video(self.script, self.voice_module, self.isVertical, progress=progress)
                         file_name = video_path.split("/")[-1].split("\\")[-1]
@@ -156,7 +219,7 @@ class VideoAutomationUI(AbstractComponentUI):
                         error_html = gradio_content_automation_ui_error_template.format(error_message=error_name, stack_trace=traceback_str)
                         bot_message = "We encountered an error while making this video ❌"
                         print("Error", traceback_str)
-                        yield gr.update(visible=False), gr.update(value=[[None, "Your video is being made now! 🎬"]]), gr.update(value="", visible=False), gr.update(value=error_html, visible=errorVisible), gr.update(visible=folderVisible), gr.update(visible=True)
+                        yield gr.update(visible=False), gr.update(value=[{"role": "assistant", "content": "Your video is being made now! 🎬"}]), gr.update(value="", visible=False), gr.update(value=error_html, visible=errorVisible), gr.update(visible=folderVisible), gr.update(visible=True)
 
                 else:
                     self.state = Chatstate.ASK_CORRECTION  # change self.state to ASK_CORRECTION
@@ -165,19 +228,11 @@ class VideoAutomationUI(AbstractComponentUI):
                 self.script = self.correct_script(self.script, message)  # call generateScript with correct=True
                 self.state = Chatstate.ASK_SATISFACTION
                 bot_message = f"📝 Here is your corrected script: \n\n--------------\n{self.script}\n\n・Are you satisfied with the script and ready to proceed with creating the video? Please respond with 'YES' or 'NO'. 👍👎"
-            chat_history.append((message, bot_message))
+            chat_history.append({"role": "user", "content": message})
+            chat_history.append({"role": "assistant", "content": bot_message})
             yield gr.update(value="", visible=inputVisible), gr.update(value=chat_history), gr.update(value=self.video_html, visible=self.videoVisible), gr.update(value=error_html, visible=errorVisible), gr.update(visible=folderVisible), gr.update(visible=True)
 
         return respond
-
-    def initialize_conversation(self):
-        self.state = Chatstate.ASK_ORIENTATION
-        self.isVertical = None
-        self.language = None
-        self.script = ""
-        self.video_html = ""
-        self.videoVisible = False
-        return [[None, "🤖 Welcome to ShortGPT! 🚀 I'm a python framework aiming to simplify and automate your video editing tasks.\nLet's get started! 🎥🎬\n\n Do you want your video to be in landscape or vertical format? (landscape OR vertical)"]]
 
     def reset_conversation(self):
         self.state = Chatstate.ASK_ORIENTATION
@@ -190,11 +245,11 @@ class VideoAutomationUI(AbstractComponentUI):
     def create_ui(self):
         with gr.Row(visible=False) as self.video_automation:
             with gr.Column():
-                self.chatbot = gr.Chatbot(self.initialize_conversation, height=365)
+                self.chatbot = gr.Chatbot(self.initialize_conversation, height=365, type='messages')
                 self.msg = gr.Textbox()
                 self.restart_button = gr.Button("Restart")
                 self.video_folder = gr.Button("📁", visible=False)
-                self.video_folder.click(lambda _: AssetComponentsUtils.start_file(os.path.abspath("videos/")))
+                self.video_folder.click(lambda x=None: AssetComponentsUtils.start_file(os.path.abspath("videos/")))  # Adjusted to accept optional arg
                 respond = self.chatbot_conversation()
 
             self.errorHTML = gr.HTML(visible=False)
@@ -202,4 +257,12 @@ class VideoAutomationUI(AbstractComponentUI):
             self.restart_button.click(self.reset_components, [], [self.chatbot, self.msg, self.errorHTML, self.outHTML])
             self.restart_button.click(self.reset_conversation, [])
             self.msg.submit(respond, [self.msg, self.chatbot], [self.msg, self.chatbot, self.outHTML, self.errorHTML, self.video_folder, self.restart_button])
+
+            # Add a log viewer button
+            log_button = gr.Button("View Logs")
+            log_button.click(lambda: AssetComponentsUtils.start_file(os.path.abspath(".logs/")))  # No args expected, so no change needed here
+
+            transcript_display = gr.Textbox(label="Audio Transcript", lines=10, interactive=False, visible=False)
+            # In make_video or respond, set transcript_display.value to the transcript text
+            # Example: transcript_display = gr.update(value=str(self._db_timed_captions), visible=True)
         return self.video_automation

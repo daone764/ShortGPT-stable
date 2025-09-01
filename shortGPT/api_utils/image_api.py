@@ -75,3 +75,27 @@ def getBingImages(query, retries=5):
     if(images):
         return images
     raise Exception("Error While making bing image searches")
+
+def getBingImages(search_term, count=10, filter='', subscription_key=None):
+    """Get images from Bing Image Search API."""
+    if not subscription_key:
+        subscription_key = ApiKeyManager.get_api_key("BING_API_KEY")
+    
+    # For car models, ensure proper formatting and add keywords
+    lower_term = search_term.lower()
+    if "genesis" in lower_term and "hyundai" not in lower_term:
+        search_term = f"Hyundai {search_term}"
+    
+    if any(car_term in lower_term for car_term in ["car", "genesis", "hyundai", "bmw", "ferrari"]):
+        search_term = f"{search_term} car photo"
+    
+    # Don't search for just numbers
+    if search_term.strip().isdigit() or (search_term.strip().replace(',', '').isdigit()):
+        search_term = "Hyundai Genesis car"
+    
+    # Remove the word "image" if it exists (since we're already searching for images)
+    search_term = search_term.replace(" image", "").strip()
+    
+    print(f"[INFO] Searching Bing Images for: '{search_term}'")
+    
+    # Make API request

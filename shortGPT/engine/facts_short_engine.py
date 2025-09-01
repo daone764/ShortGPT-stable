@@ -1,7 +1,7 @@
 from shortGPT.audio.voice_module import VoiceModule
-from shortGPT.gpt import facts_gpt
 from shortGPT.config.languages import Language
 from shortGPT.engine.content_short_engine import ContentShortEngine
+from shortGPT.gpt.gpt_chat_video import generateFactsScript
 
 
 class FactsShortEngine(ContentShortEngine):
@@ -14,8 +14,13 @@ class FactsShortEngine(ContentShortEngine):
         self._db_facts_type = facts_type
 
     def _generateScript(self):
-        """
-        Implements Abstract parent method to generate the script for the Facts short.
-        """
-        self._db_script = facts_gpt.generateFacts(self._db_facts_type)
+        if not self._db_script:
+            self.logger("1/11 Generating the script about your topic...")
+            facts_prompt = self._db_facts_type if self._db_facts_type else "Interesting facts"
+            chat_prompt = facts_prompt
+            
+            # Use the imported function
+            self._db_script = generateFactsScript(chat_prompt + " (must be under 30 seconds)")
+        return self._db_script
+
 
