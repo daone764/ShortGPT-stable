@@ -46,7 +46,6 @@ class ShortAutomationUI(AbstractComponentUI):
                 numImages = gr.Radio([5, 10, 25], value=10, label="Number of images per short", visible=True, interactive=True)
                 useImages.change(lambda x: gr.update(visible=x), useImages, numImages)
 
-                fallbackImage = gr.File(label="Select fallback image for missing images", type="filepath", visible=True)
 
                 addWatermark = gr.Checkbox(label="Add watermark")
                 watermark = gr.Textbox(label="Watermark (your channel name)", visible=False)
@@ -85,8 +84,7 @@ class ShortAutomationUI(AbstractComponentUI):
                     AssetComponentsUtils.background_video_checkbox(),
                     AssetComponentsUtils.background_music_checkbox(),
                     facts_subject,
-                    voice_eleven,
-                    fallbackImage
+                    voice_eleven
                 ],
                 outputs=[output, video_folder, generation_error]
             )
@@ -117,11 +115,8 @@ class ShortAutomationUI(AbstractComponentUI):
             for i in range(numShorts):
                 shortEngine = self.create_short_engine(short_type=short_type, voice_module=voice_module, language=language, numImages=numImages, watermark=watermark,
                                                        background_video=background_videos[i], background_music=background_musics[i], facts_subject=facts_subject)
-                # Set fallback image for this short
-                if fallbackImage:
-                    shortEngine.fallback_image = fallbackImage
-                else:
-                    shortEngine.fallback_image = topic_defaults.get(short_type, "public/white_reddit_template.png")
+                # Always set fallback image based on topic
+                shortEngine.fallback_image = topic_defaults.get(short_type, "public/white_reddit_template.png")
                 num_steps = shortEngine.get_total_steps()
 
                 def logger(prog_str):

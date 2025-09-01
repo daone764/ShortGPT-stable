@@ -18,6 +18,29 @@ from shortGPT.gpt import gpt_editing, gpt_translate, gpt_yt
 
 
 class ContentShortEngine(AbstractContentEngine):
+    def _extract_topics_and_timestamps(self):
+        """Extract topics and their start/end times from the script and captions."""
+        import re
+        topics = []
+        time_ranges = []
+        last_idx = 0
+        for i, (timing, text) in enumerate(self._db_timed_captions):
+            # Detect topic changes using regex (e.g., 'Fact', 'Record', numbers, etc.)
+            if re.match(r"^(fact|record|guinness|topic|#?\d+)", text.lower()):
+                if topics:
+                    # Set end time for previous topic
+                    time_ranges[-1] = (time_ranges[-1][0], timing[0])
+                topics.append(text)
+                time_ranges.append([timing[0], None])
+                last_idx = i
+        # Set end time for last topic
+        if time_ranges and time_ranges[-1][1] is None:
+            time_ranges[-1][1] = self._db_timed_captions[-1][0][1]
+        # Fallback: if no markers, use all captions
+        if not topics:
+            topics = [text for timing, text in self._db_timed_captions]
+            time_ranges = [(timing[0], timing[1]) for timing, text in self._db_timed_captions]
+        return topics, time_ranges
 
     def __init__(self, short_type: str, background_video_name: str, background_music_name: str, voiceModule: VoiceModule, short_id="",
                  num_images=None, watermark=None, language: Language = Language.ENGLISH,):
@@ -78,8 +101,12 @@ class ContentShortEngine(AbstractContentEngine):
     def _generateImageSearchTerms(self):
         self.verifyParameters(captionsTimed=self._db_timed_captions)
         if self._db_num_images:
-            self._db_timed_image_searches = gpt_editing.getImageQueryPairs(
-                self._db_timed_captions, n=self._db_num_images)
+            # Extract topics and time ranges
+            topics, time_ranges = self._extract_topics_and_timestamps()
+            image_searches = []
+            for topic, (start, end) in zip(topics, time_ranges):
+                image_searches.append(((start, end), topic))  # Show image for full topic segment
+            self._db_timed_image_searches = image_searches
 
     def _generateImageUrls(self):
         if self._db_timed_image_searches:
@@ -141,9 +168,28 @@ class ContentShortEngine(AbstractContentEngine):
                                                           'set_time_end': timing[1]})
             if self._db_num_images:
                 fallback_image = getattr(self, 'fallback_image', "public/white_reddit_template.png")
+                main_topic = getattr(self, 'facts_subject', None)
+                print(f"[DEBUG] Main topic for this short: {main_topic}")
                 count = 0
+                from shortGPT.editing_utils.editing_images import searchImageUrlsFromQuery
+                # Force main topic image at start
+                if main_topic:
+                    main_topic_image = searchImageUrlsFromQuery(main_topic)
+                    if not main_topic_image:
+                        print(f"[INFO] Fallback image used for main topic: {fallback_image}")
+                        main_topic_image = fallback_image
+                    videoEditor.addEditingStep(EditingStep.SHOW_IMAGE, {
+                        'url': main_topic_image,
+                        'set_time_start': 0,
+                        'set_time_end': 2})
+                    count += 1
                 for timing, image_url in self._db_timed_image_urls:
+                    print(f"[DEBUG] Query for segment at {timing[0]}s: {image_url}")
+                    if not image_url and main_topic:
+                        print(f"[INFO] No image found for segment at {timing[0]}s, trying main topic: {main_topic}")
+                        image_url = searchImageUrlsFromQuery(main_topic)
                     if not image_url:
+                        print(f"[INFO] Fallback image used for topic at {timing[0]}s: {fallback_image}")
                         image_url = fallback_image
                     videoEditor.addEditingStep(EditingStep.SHOW_IMAGE, {
                         'url': image_url,
@@ -151,6 +197,7 @@ class ContentShortEngine(AbstractContentEngine):
                         'set_time_end': timing[1]})
                     count += 1
                 while count < self._db_num_images:
+                    print(f"[INFO] Extra fallback image used: {fallback_image}")
                     videoEditor.addEditingStep(EditingStep.SHOW_IMAGE, {
                         'url': fallback_image,
                         'set_time_start': 0,
